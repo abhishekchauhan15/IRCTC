@@ -1,30 +1,22 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const mysql = require('mysql');
-
+const express = require("express");
 const app = express();
-const port = 3000;
+const bodyParser = require("body-parser");
+const userRoutes = require("./routes/userRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const trainRoutes = require("./routes/trainRoutes");
+const bookingRoutes = require("./routes/bookingRoutes");
 
 // Middleware
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
-// Database connection
-const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'iamabhi@1509',
-    database: 'mysql'
+// Routes
+app.use("/api/user", userRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/train", trainRoutes);
+app.use("/api/booking", bookingRoutes);
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
-
-db.connect((err) => {
-    if (err) throw err;
-    console.log('Connected to MySQL database');
-});
-
-// API endpoints
-
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-});
-
