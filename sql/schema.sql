@@ -10,8 +10,10 @@ CREATE TABLE trains (
     source VARCHAR(255) NOT NULL,
     destination VARCHAR(255) NOT NULL,
     total_seats INT NOT NULL,
-    available_seats INT NOT NULL
+    available_seats INT NOT NULL,
+    UNIQUE KEY unique_train_source_destination (source, destination)
 );
+
 
 
 CREATE TABLE bookings (
