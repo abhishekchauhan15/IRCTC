@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 require("dotenv").config();
+const morgan = require("morgan");
 const bodyParser = require("body-parser");
 const userRoutes = require("./routes/userRoutes");
 const adminRoutes = require("./routes/adminRoutes");
@@ -9,6 +10,8 @@ const bookingRoutes = require("./routes/bookingRoutes");
 
 // Middleware
 app.use(bodyParser.json());
+app.use(morgan("dev"));
+
 
 app.get("/", (req, res) => {
   res.json({ message: "Welcome to Train Booking API" });

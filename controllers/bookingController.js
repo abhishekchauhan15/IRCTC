@@ -1,4 +1,65 @@
 const db = require("../config/dbConfig");
+const redis = require("redis");
+
+const redisConfig = {
+  host: process.env.REDIS_HOST,
+  port: process.env.REDIS_PORT,
+};
+
+const publisher = redis.createClient(redisConfig);
+const subscriber = redis.createClient(redisConfig);
+
+publisher.on("error", (err) => {
+  console.error("Publisher Redis client error:", err);
+});
+
+subscriber.on("error", (err) => {
+  console.error("Subscriber Redis client error:", err);
+});
+
+console.log("Connecting to Redis on host:",redisConfig.host,"port:",redisConfig.port);
+
+subscriber.subscribe("booking_requests");
+
+// Handlling messages received on the booking_requests channel
+subscriber.on("message", async (channel, message) => {
+  try {
+    console.log("Received message:", message);
+    const booking = JSON.parse(message);
+
+    // Processing the booking request
+    const insertBookingQuery =
+      "INSERT INTO bookings (user_id, train_id, booked_seats) VALUES (?, ?, ?)";
+    db.query(
+      insertBookingQuery,
+      [booking.userId, booking.trainId, booking.bookedSeats],
+      (err, result) => {
+        if (err) {
+          console.error("Error inserting booking into database:", err);
+        } else {
+          console.log("Booking inserted into database:", result);
+
+          // Updating available seats for the train
+          const updateTrainQuery =
+            "UPDATE trains SET available_seats = available_seats - ? WHERE id = ?";
+          db.query(
+            updateTrainQuery,
+            [booking.bookedSeats, booking.trainId],
+            (err, result) => {
+              if (err) {
+                console.error("Error updating train availability:", err);
+              } else {
+                console.log("Train availability updated:", result);
+              }
+            }
+          );
+        }
+      }
+    );
+  } catch (error) {
+    console.error("Error processing booking request:", error);
+  }
+});
 
 const bookSeat = async (req, res) => {
   try {
@@ -17,38 +78,18 @@ const bookSeat = async (req, res) => {
         return;
       }
 
-      setTimeout(() => {
-        // Book the seats
-        const insertBookingQuery =
-          "INSERT INTO bookings (user_id, train_id, booked_seats) VALUES (?, ?, ?)";
-        db.query(
-          insertBookingQuery,
-          [userId, trainId, bookedSeats],
-          (err, result) => {
-            if (err) {
-              console.error("Error booking seat:", err);
-              res.status(500).json({ error: "Internal server error" });
-              return;
-            }
+      // Enqueue booking request to Redis Pub/Sub channel
+      const booking = { userId, trainId, bookedSeats };
+      publisher.publish("booking_requests", JSON.stringify(booking), (err) => {
+        if (err) {
+          console.error("Error enqueuing booking request:", err);
+          res.status(500).json({ error: "Internal server error" });
+        } else {
+          res.status(202).json({ message: "Booking request enqueued" });
+        }
+      });
 
-            // Update available seats for the train
-            const updateTrainQuery =
-              "UPDATE trains SET available_seats = available_seats - ? WHERE id = ?";
-            db.query(
-              updateTrainQuery,
-              [bookedSeats, trainId],
-              (err, result) => {
-                if (err) {
-                  console.error("Error updating train availability:", err);
-                  res.status(500).json({ error: "Internal server error" });
-                  return;
-                }
-                res.status(201).json({ message: "Seat booked successfully" });
-              }
-            );
-          }
-        );
-      }, 2000);
+      console.log("Booking request done");
     });
   } catch (error) {
     console.error("Error booking seat:", error);
